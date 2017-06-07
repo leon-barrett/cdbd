@@ -1,0 +1,26 @@
+[package]
+
+name = "cdbd"
+version = "0.1.0"
+authors = ["Leon Barrett <leon@barrettnexus.com>"]
+
+description = "A little server that serves constant key-value store files (e.g. CDB and MTBL) via standard protocols (e.g. memcached)"
+repository = "https://github.com/leon-barrett/cdbd"
+homepage = "https://github.com/leon-barrett/cdbd"
+documentation = "https://github.com/leon-barrett/cdbd"
+readme = "README.md"
+keywords = ["database", "mtbl", "cdb", "server", "memcached"]
+license = "MIT/Apache-2.0"
+
+[dependencies]
+
+byteorder = "1.0.0"
+fern = "0.4.0"
+getopts = "0.2.11"
+log = "0.3.8"
+mtbl = "0.2.0"
+num_cpus = "1.5.0"
+objpool = "0.2.0"
+regex = "0.2.2"
+time = "0.1.32"
+tinycdb = "0.0.7"
