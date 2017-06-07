@@ -120,7 +120,10 @@ fn parse_args() -> Args {
                 "[HOST:]PORT");
     opts.optopt("", "cdb", "A CDB file to serve", "CDB");
     opts.optopt("", "mtbl", "An MTBL file to serve", "MTBL");
-    opts.optflagmulti("v", "verbose", "Print more logging information");
+    opts.optflagmulti("v",
+                      "verbose",
+                      "Print more logging information (may be used more than once for more \
+                       detail)");
     opts.optflag("h", "help", "Print this help text");
     let args: Vec<String> = env::args().collect();
     let program = args[0].clone();

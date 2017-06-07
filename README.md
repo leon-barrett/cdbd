@@ -25,6 +25,22 @@ Install with [Cargo][], the Rust package manager, like so:
 cargo install cdbd
 ```
 
+## Usage
+
+```
+Usage: target/debug/cdbd [options]
+
+Options:
+        --memcached [HOST:]PORT
+                        What port (and optional address) to bind a memcached
+                        service on (default address "0.0.0.0")
+        --cdb CDB       A CDB file to serve
+        --mtbl MTBL     An MTBL file to serve
+    -v, --verbose       Print more logging information (may be used more than
+                        once for more detail)
+    -h, --help          Print this help text
+```
+
 ## Supported constant databases
 
 * [CDB][] (with flag `--cdb FILE`)
