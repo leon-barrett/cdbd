@@ -134,7 +134,7 @@ fn parse_args() -> Args {
             exit(2);
         }
     };
-    if matches.opt_present("help") {
+    if args.len() == 1 || matches.opt_present("help") {
         print!("{}", opts.usage(&format!("Usage: {} [options]", program)));
         exit(2);
     }
