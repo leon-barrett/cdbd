@@ -1,5 +1,7 @@
 # cdbd
 
+[![Circle CI](https://circleci.com/gh/leon-barrett/cdbd.svg?style=shield&circle-token=:circle-token)](https://circleci.com/gh/leon-barrett/cdbd)
+
 cdbd ("constant database daemon") is a small constant database server: given a
 key-value file in a format it understands (like [CDB][]), it will serve that
 file via a protocol it speaks (like memcached).
