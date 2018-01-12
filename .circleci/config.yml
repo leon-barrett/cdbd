@@ -1,7 +1,6 @@
 version: 2
 jobs:
   build:
-    branch: circleci
     docker:
       - image: rust:latest
     working_directory: /mnt/crate
