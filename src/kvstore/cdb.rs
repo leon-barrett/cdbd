@@ -12,7 +12,9 @@ pub fn new_cdb_pool(p: &Path, pool_size: usize) -> CdbPool {
     let p = PathBuf::from(p);
     let pool = Pool::with_capacity(pool_size, move || Cdb::open(&p).unwrap());
     // Warm up the pool.
-    (0..pool_size).map(|_: usize| (*pool).get()).collect::<Vec<_>>();
+    (0..pool_size)
+        .map(|_: usize| (*pool).get())
+        .collect::<Vec<_>>();
     pool
 }
 

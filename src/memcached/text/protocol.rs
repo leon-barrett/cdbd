@@ -148,44 +148,35 @@ impl Request {
                 let elts: Vec<&str> = cmd.split_whitespace().collect();
                 match elts.len() {
                     0 => Request::Error,
-                    _ => {
-                        match (elts[0], elts.len()) {
-                            ("get", _) => {
-                                Ok(Request::Get {
-                                    keys: get_keys(&elts[1..]),
-                                    cas: false,
-                                })
-                            }
-                            ("gets", _) => {
-                                Ok(Request::Get {
-                                    keys: get_keys(&elts[1..]),
-                                    cas: true,
-                                })
-                            }
-                            ("set", 5) => read_data_request(&elts, rdr).map(Request::Set),
-                            ("add", 5) => read_data_request(&elts, rdr).map(Request::Add),
-                            ("replace", 5) => read_data_request(&elts, rdr).map(Request::Replace),
-                            ("append", 5) => read_data_request(&elts, rdr).map(Request::Append),
-                            ("prepend", 5) => read_data_request(&elts, rdr).map(Request::Prepend),
-                            ("cas", 6) => read_cas(&elts, rdr),
-                            ("touch", 3...4) => parse_touch(&elts),
-                            ("delete", 2...3) => {
-                                Ok(Request::Delete {
-                                    key: elts[1].to_string(),
-                                    noreply: elts.get(2) == Some(&"noreply"),
-                                })
-                            }
-                            ("incr", 3...4) => parse_incr(&elts).map(Request::Incr),
-                            ("decr", 3...4) => parse_incr(&elts).map(Request::Decr),
-                            ("slabs", _) => Ok(Request::Slabs(cmd.to_string())),
-                            ("stats", _) => Ok(Request::Stats(cmd.to_string())),
-                            ("flush_all", 1) => Ok(Request::FlushAll),
-                            ("version", 1) => Ok(Request::Version),
-                            ("quit", 1) => Ok(Request::Quit),
-                            _ => Ok(Request::Error),
-                        }
-                        .unwrap_or(Request::Error)
-                    }
+                    _ => match (elts[0], elts.len()) {
+                        ("get", _) => Ok(Request::Get {
+                            keys: get_keys(&elts[1..]),
+                            cas: false,
+                        }),
+                        ("gets", _) => Ok(Request::Get {
+                            keys: get_keys(&elts[1..]),
+                            cas: true,
+                        }),
+                        ("set", 5) => read_data_request(&elts, rdr).map(Request::Set),
+                        ("add", 5) => read_data_request(&elts, rdr).map(Request::Add),
+                        ("replace", 5) => read_data_request(&elts, rdr).map(Request::Replace),
+                        ("append", 5) => read_data_request(&elts, rdr).map(Request::Append),
+                        ("prepend", 5) => read_data_request(&elts, rdr).map(Request::Prepend),
+                        ("cas", 6) => read_cas(&elts, rdr),
+                        ("touch", 3...4) => parse_touch(&elts),
+                        ("delete", 2...3) => Ok(Request::Delete {
+                            key: elts[1].to_string(),
+                            noreply: elts.get(2) == Some(&"noreply"),
+                        }),
+                        ("incr", 3...4) => parse_incr(&elts).map(Request::Incr),
+                        ("decr", 3...4) => parse_incr(&elts).map(Request::Decr),
+                        ("slabs", _) => Ok(Request::Slabs(cmd.to_string())),
+                        ("stats", _) => Ok(Request::Stats(cmd.to_string())),
+                        ("flush_all", 1) => Ok(Request::FlushAll),
+                        ("version", 1) => Ok(Request::Version),
+                        ("quit", 1) => Ok(Request::Quit),
+                        _ => Ok(Request::Error),
+                    }.unwrap_or(Request::Error),
                 }
             }
         }
@@ -195,14 +186,16 @@ impl Request {
 impl<'a> Response<'a> {
     pub fn write(&self, wtr: &mut Write) -> Result<()> {
         match self {
-            &Response::KeyValue { key, flags, value, cas } => {
-                match cas {
-                    None => write!(wtr, "VALUE {} {} {}\r\n", key, flags, value.len()),
-                    Some(cas) => write!(wtr, "VALUE {} {} {} {}\r\n", key, flags, value.len(), cas),
-                }
-                .and_then(|_| wtr.write(value))
-                .and_then(|_| write!(wtr, "\r\n"))
-            }
+            &Response::KeyValue {
+                key,
+                flags,
+                value,
+                cas,
+            } => match cas {
+                None => write!(wtr, "VALUE {} {} {}\r\n", key, flags, value.len()),
+                Some(cas) => write!(wtr, "VALUE {} {} {} {}\r\n", key, flags, value.len(), cas),
+            }.and_then(|_| wtr.write(value))
+                .and_then(|_| write!(wtr, "\r\n")),
             &Response::End => write!(wtr, "END\r\n"),
             &Response::Error => write!(wtr, "ERROR\r\n"),
             &Response::Deleted => write!(wtr, "DELETED\r\n"),
@@ -212,13 +205,10 @@ impl<'a> Response<'a> {
             &Response::NoReply => Ok(()),
             &Response::ServerError(msg) => write!(wtr, "SERVER_ERROR {}\r\n", msg),
             &Response::ClientError(msg) => write!(wtr, "CLIENT_ERROR {}\r\n", msg),
-            &Response::Stats(msgs) => {
-                msgs.iter()
-                    .map(|&(name, value)| write!(wtr, "STAT {} {}\r\n", name, value))
-                    .collect::<io::Result<Vec<()>>>()
-                    .map(|_| ())
-            }
-        }
-        .map_err(Error::from)
+            &Response::Stats(msgs) => msgs.iter()
+                .map(|&(name, value)| write!(wtr, "STAT {} {}\r\n", name, value))
+                .collect::<io::Result<Vec<()>>>()
+                .map(|_| ()),
+        }.map_err(Error::from)
     }
 }

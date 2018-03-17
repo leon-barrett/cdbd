@@ -6,10 +6,11 @@ use super::protocol::{PRead, PWrite, Response};
 use super::protocol::constants::{opcodes, response_status};
 use super::super::error::Result;
 
-pub fn handle_client<KV: KvStore, T: Read + PRead, U: Write>(kvstore: KV,
-                                                             mut ins: T,
-                                                             mut outs: U)
-                                                             -> Result<()> {
+pub fn handle_client<KV: KvStore, T: Read + PRead, U: Write>(
+    kvstore: KV,
+    mut ins: T,
+    mut outs: U,
+) -> Result<()> {
     trace!("memcached_binary:connect");
     loop {
         let request = try!(ins.read_request());
@@ -20,20 +21,25 @@ pub fn handle_client<KV: KvStore, T: Read + PRead, U: Write>(kvstore: KV,
                 let return_not_found = opcode == opcodes::GET || opcode == opcodes::GETK;
                 match kvstore.get(&request.key) {
                     Some(data) => {
-                        trace!("memcached_binary:get {:?} => {} bytes",
-                               request.key,
-                               data.len());
-                        try!(outs.write_response(&Response::make(&request,
-                                                                 &[0x00, 0x00, 0x00, 0x00],
-                                                                 include_key,
-                                                                 &data)));
+                        trace!(
+                            "memcached_binary:get {:?} => {} bytes",
+                            request.key,
+                            data.len()
+                        );
+                        try!(outs.write_response(&Response::make(
+                            &request,
+                            &[0x00, 0x00, 0x00, 0x00],
+                            include_key,
+                            &data
+                        )));
                     }
                     None => {
                         trace!("memcached_binary:get {:?} => not found", request.key);
                         if return_not_found {
-                            try!(outs.write_response(
-                                    &Response::make_error(&request,
-                                                          response_status::KEY_NOT_FOUND)));
+                            try!(outs.write_response(&Response::make_error(
+                                &request,
+                                response_status::KEY_NOT_FOUND
+                            )));
                         }
                     }
                 }
@@ -48,15 +54,19 @@ pub fn handle_client<KV: KvStore, T: Read + PRead, U: Write>(kvstore: KV,
             }
             opcodes::VERSION => {
                 trace!("memcached_binary:version");
-                try!(outs.write_response(&Response::make(&request,
-                                                         &[],
-                                                         false,
-                                                         "0.0.0".as_bytes())));
+                try!(outs.write_response(&Response::make(
+                    &request,
+                    &[],
+                    false,
+                    "0.0.0".as_bytes()
+                )));
             }
             _ => {
                 trace!("memcached_binary:unknown opcode {}", request.header.opcode);
-                try!(outs.write_response(&Response::make_error(&request,
-                                                               response_status::NOT_SUPPORTED)));
+                try!(outs.write_response(&Response::make_error(
+                    &request,
+                    response_status::NOT_SUPPORTED
+                )));
             }
         }
         try!(outs.flush());

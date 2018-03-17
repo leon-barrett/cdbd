@@ -28,16 +28,15 @@ use kvstore::mtbl::new_mtbl;
 mod memcached;
 use memcached::server::memcached_server;
 
-
 /// A database to serve
-#[derive(Debug,Clone)]
+#[derive(Debug, Clone)]
 enum DbArg {
     Cdb(String),
     Mtbl(String),
 }
 
 /// A address and port to run a service on
-#[derive(Debug,Clone)]
+#[derive(Debug, Clone)]
 struct Listen {
     address: String,
     port: u16,
@@ -50,12 +49,12 @@ impl fmt::Display for Listen {
 }
 
 /// A service to run
-#[derive(Debug,Clone)]
+#[derive(Debug, Clone)]
 enum ServiceArg {
     Memcached(Listen),
 }
 
-#[derive(Debug,Clone)]
+#[derive(Debug, Clone)]
 struct Args {
     db: DbArg,
     services: Vec<ServiceArg>,
@@ -66,16 +65,16 @@ fn parse_address_and_port(s: &str) -> Listen {
     Regex::new(r"^((?P<address>.*):)?(?P<port>\d+)$")
         .unwrap()
         .captures(s)
-        .map(|c| {
-            Listen {
-                address: c.name("address").map_or("0.0.0.0", |m| m.as_str()).to_owned(),
-                port: c.name("port")
-                       .map(|m| {
-                           u16::from_str(m.as_str())
-                               .expect(&format!("error parsing port from \"{}\"", m.as_str()))
-                       })
-                       .unwrap(),
-            }
+        .map(|c| Listen {
+            address: c.name("address")
+                .map_or("0.0.0.0", |m| m.as_str())
+                .to_owned(),
+            port: c.name("port")
+                .map(|m| {
+                    u16::from_str(m.as_str())
+                        .expect(&format!("error parsing port from \"{}\"", m.as_str()))
+                })
+                .unwrap(),
         })
         .expect(&format!("error parsing address and port from \"{}\"", s))
 }
@@ -96,8 +95,8 @@ fn parse_services(matches: &Matches) -> Vec<ServiceArg> {
 }
 
 fn parse_db(matches: &Matches) -> DbArg {
-    let db_matchers: Vec<(&str, fn(String) -> DbArg)> = vec![("cdb", DbArg::Cdb),
-                                                             ("mtbl", DbArg::Mtbl)];
+    let db_matchers: Vec<(&str, fn(String) -> DbArg)> =
+        vec![("cdb", DbArg::Cdb), ("mtbl", DbArg::Mtbl)];
     let mut dbs: Vec<DbArg> = db_matchers.iter()
         .map(|&(name, db_f)|
              matches.opt_str(name)
@@ -113,17 +112,21 @@ fn parse_db(matches: &Matches) -> DbArg {
 
 fn parse_args() -> Args {
     let mut opts = Options::new();
-    opts.optopt("",
-                "memcached",
-                "What port (and optional address) to bind a memcached service on (default \
-                 address \"0.0.0.0\")",
-                "[HOST:]PORT");
+    opts.optopt(
+        "",
+        "memcached",
+        "What port (and optional address) to bind a memcached service on (default \
+         address \"0.0.0.0\")",
+        "[HOST:]PORT",
+    );
     opts.optopt("", "cdb", "A CDB file to serve", "CDB");
     opts.optopt("", "mtbl", "An MTBL file to serve", "MTBL");
-    opts.optflagmulti("v",
-                      "verbose",
-                      "Print more logging information (may be used more than once for more \
-                       detail)");
+    opts.optflagmulti(
+        "v",
+        "verbose",
+        "Print more logging information (may be used more than once for more \
+         detail)",
+    );
     opts.optflag("h", "help", "Print this help text");
     let args: Vec<String> = env::args().collect();
     let program = args[0].clone();
@@ -152,12 +155,14 @@ fn setup_logger(verbosity: u8) {
     fern::Dispatch::new()
         .format(|out, message, record| {
             let t = time::now_utc();
-            out.finish(format_args!("[{}.{:03}Z][{}][{}] {}",
-                                    t.strftime("%FT%T").unwrap(),
-                                    t.tm_nsec / 1000000, // milliseconds
-                                    record.level(),
-                                    record.target(),
-                                    message))
+            out.finish(format_args!(
+                "[{}.{:03}Z][{}][{}] {}",
+                t.strftime("%FT%T").unwrap(),
+                t.tm_nsec / 1000000, // milliseconds
+                record.level(),
+                record.target(),
+                message
+            ))
         })
         .level(match verbosity {
             0 => log::LogLevelFilter::Warn,
@@ -172,19 +177,22 @@ fn setup_logger(verbosity: u8) {
 fn open_db(db: &DbArg) -> Arc<KvStore + Send + Sync> {
     match db {
         &DbArg::Cdb(ref f) => {
-            Arc::new(new_cdb_pool(Path::new(&f),
-                                  // Support a parallelism of 10 + 10 per CPU. Is
-                                  // that good? It seems like a start.
-                                  10 + 10 * num_cpus::get()))
+            Arc::new(new_cdb_pool(
+                Path::new(&f),
+                // Support a parallelism of 10 + 10 per CPU. Is
+                // that good? It seems like a start.
+                10 + 10 * num_cpus::get(),
+            ))
         }
         &DbArg::Mtbl(ref f) => Arc::new(new_mtbl(Path::new(&f))),
     }
 }
 
-fn spawn_service(service: ServiceArg,
-                 db: &DbArg,
-                 kvstore: &Arc<KvStore + Send + Sync>)
-                 -> thread::JoinHandle<()> {
+fn spawn_service(
+    service: ServiceArg,
+    db: &DbArg,
+    kvstore: &Arc<KvStore + Send + Sync>,
+) -> thread::JoinHandle<()> {
     println!("Serving from {:?} on {:?}", db, service);
     let service = service.clone();
     let kvstore = kvstore.clone();
@@ -196,16 +204,19 @@ fn spawn_service(service: ServiceArg,
 }
 
 fn main() {
-    let Args { services, db, verbosity } = parse_args();
+    let Args {
+        services,
+        db,
+        verbosity,
+    } = parse_args();
     setup_logger(verbosity);
     // Load the database.
     let kvstore = open_db(&db);
     // Start all services.
-    let threads: Vec<thread::JoinHandle<()>> = services.into_iter()
-                                                       .map(|service| {
-                                                           spawn_service(service, &db, &kvstore)
-                                                       })
-                                                       .collect();
+    let threads: Vec<thread::JoinHandle<()>> = services
+        .into_iter()
+        .map(|service| spawn_service(service, &db, &kvstore))
+        .collect();
     // Wait on all server threads.
     for thread in threads {
         thread.join().expect("server thread failed");

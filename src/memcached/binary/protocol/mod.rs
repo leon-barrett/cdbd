@@ -24,7 +24,8 @@ pub struct RequestHeader {
 /// A Memcached binary request
 #[derive(Debug, PartialEq, Eq)]
 pub struct ARequest<T>
-    where T: AsRef<[u8]>
+where
+    T: AsRef<[u8]>,
 {
     pub header: RequestHeader,
     pub extras: T,
@@ -50,7 +51,8 @@ pub struct ResponseHeader {
 /// A Memcached binary response
 #[derive(Debug, PartialEq, Eq)]
 pub struct AResponse<T>
-    where T: AsRef<[u8]>
+where
+    T: AsRef<[u8]>,
 {
     pub header: ResponseHeader,
     pub extras: T,
@@ -68,7 +70,8 @@ pub trait PRead {
 }
 
 impl<T> PRead for T
-    where T: Read
+where
+    T: Read,
 {
     fn read_request_header(self: &mut Self) -> Result<RequestHeader> {
         Ok(RequestHeader {
@@ -87,7 +90,10 @@ impl<T> PRead for T
     fn read_request(self: &mut Self) -> Result<Request> {
         let header = try!(self.read_request_header());
         let (mut extras, mut key) = (Vec::new(), Vec::new());
-        try!(self.take(header.extras_length as u64).read_to_end(&mut extras));
+        try!(
+            self.take(header.extras_length as u64)
+                .read_to_end(&mut extras)
+        );
         try!(self.take(header.key_length as u64).read_to_end(&mut key));
         Ok(Request {
             header: header,
@@ -114,9 +120,8 @@ impl<T> PRead for T
         let header = try!(self.read_response_header());
         let mut extras = vec![0; header.extras_length as usize];
         let mut key = vec![0; header.key_length as usize];
-        let value_length: usize = header.total_body_length as usize -
-                                  header.extras_length as usize -
-                                  header.key_length as usize;
+        let value_length: usize = header.total_body_length as usize - header.extras_length as usize
+            - header.key_length as usize;
         let mut value = vec![0; value_length];
         try!(self.read_exact(extras.as_mut_slice()));
         try!(self.read_exact(key.as_mut_slice()));
@@ -184,11 +189,12 @@ impl<W: Write> PWrite for W {
 
 impl<'a> Response<'a> {
     /// Construct a key/value response.
-    pub fn make(request: &'a Request,
-                extras: &'a [u8],
-                include_key: bool,
-                value: &'a [u8])
-                -> Response<'a> {
+    pub fn make(
+        request: &'a Request,
+        extras: &'a [u8],
+        include_key: bool,
+        value: &'a [u8],
+    ) -> Response<'a> {
         let key_length = if include_key {
             request.header.key_length
         } else {
@@ -208,11 +214,7 @@ impl<'a> Response<'a> {
                 cas: request.header.cas,
             },
             extras: extras,
-            key: if include_key {
-                &request.key
-            } else {
-                &[]
-            },
+            key: if include_key { &request.key } else { &[] },
             value: value,
         }
     }

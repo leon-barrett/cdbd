@@ -5,10 +5,11 @@ use kvstore::KvStore;
 use super::protocol::{Request, Response};
 use super::super::error::Result;
 
-pub fn handle_client<KV: KvStore, T: BufRead, U: Write>(kvstore: KV,
-                                                        mut ins: T,
-                                                        mut outs: U)
-                                                        -> Result<()> {
+pub fn handle_client<KV: KvStore, T: BufRead, U: Write>(
+    kvstore: KV,
+    mut ins: T,
+    mut outs: U,
+) -> Result<()> {
     trace!("memcached_text:connect");
     loop {
         match Request::parse(&mut ins) {
@@ -27,17 +28,14 @@ pub fn handle_client<KV: KvStore, T: BufRead, U: Write>(kvstore: KV,
                 for key in keys.iter() {
                     match kvstore.get(key.as_bytes()) {
                         Some(value) => {
-                            try!(Response::KeyValue {
-                                     key: key,
-                                     flags: 0,
-                                     value: &value,
-                                     cas: if cas {
-                                         Some(0)
-                                     } else {
-                                         None
-                                     },
-                                 }
-                                 .write(&mut outs));
+                            try!(
+                                Response::KeyValue {
+                                    key: key,
+                                    flags: 0,
+                                    value: &value,
+                                    cas: if cas { Some(0) } else { None },
+                                }.write(&mut outs)
+                            );
                         }
                         None => {}
                     }

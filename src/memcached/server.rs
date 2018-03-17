@@ -1,4 +1,4 @@
-use std::io::{Cursor, Read, BufReader, BufWriter};
+use std::io::{BufReader, BufWriter, Cursor, Read};
 use std::net::{TcpListener, TcpStream};
 use std::thread;
 
@@ -11,10 +11,11 @@ use super::error::Result;
 use super::text::server as text_server;
 
 pub fn memcached_server<KV>(kvstore: KV, host: &str, port: u16)
-    where KV: KvStore,
-          KV: Clone,
-          KV: Send,
-          KV: 'static
+where
+    KV: KvStore,
+    KV: Clone,
+    KV: Send,
+    KV: 'static,
 {
     let listener = TcpListener::bind((host, port)).expect(&format!("Failed to open port {}", port));
 
@@ -60,12 +61,11 @@ mod test {
     use std::thread;
 
     use kvstore::KvStore;
-    use super::super::binary::protocol::{constants, Request, RequestHeader, AResponse,
-                                         ResponseHeader, PRead, PWrite};
+    use super::super::binary::protocol::{constants, AResponse, PRead, PWrite, Request,
+                                         RequestHeader, ResponseHeader};
 
     /// A KvStore with one pair, {"k": "v"}
-    struct DummyKvStore {
-    }
+    struct DummyKvStore {}
 
     impl KvStore for DummyKvStore {
         fn get(&self, key: &[u8]) -> Option<Vec<u8>> {
@@ -125,128 +125,141 @@ mod test {
     fn test_text_not_implemented() {
         let mut client_stream = make_server_conn();
         // If we send an unsuppoted command, we get an error.
-        client_stream.write("set k 0 60 1\r\n_\r\n".as_bytes()).unwrap();
+        client_stream
+            .write("set k 0 60 1\r\n_\r\n".as_bytes())
+            .unwrap();
         client_stream.shutdown(Shutdown::Write).unwrap();
         let mut response = String::new();
         client_stream.read_to_string(&mut response).unwrap();
-        assert_eq!("SERVER_ERROR Read-only; method not implemented\r\n",
-                   response);
+        assert_eq!(
+            "SERVER_ERROR Read-only; method not implemented\r\n",
+            response
+        );
     }
 
     #[test]
     fn test_binary_key_present() {
         let mut client_stream = make_server_conn();
-        client_stream.write_request(&Request {
-                         header: RequestHeader {
-                             magic: constants::REQUEST_MAGIC,
-                             opcode: constants::opcodes::GET,
-                             key_length: 1,
-                             extras_length: 0,
-                             data_type: 0x00,
-                             reserved: 0,
-                             total_body_length: 0,
-                             opaque: 0,
-                             cas: 0,
-                         },
-                         extras: vec![],
-                         key: vec!['k' as u8],
-                     })
-                     .unwrap();
+        client_stream
+            .write_request(&Request {
+                header: RequestHeader {
+                    magic: constants::REQUEST_MAGIC,
+                    opcode: constants::opcodes::GET,
+                    key_length: 1,
+                    extras_length: 0,
+                    data_type: 0x00,
+                    reserved: 0,
+                    total_body_length: 0,
+                    opaque: 0,
+                    cas: 0,
+                },
+                extras: vec![],
+                key: vec!['k' as u8],
+            })
+            .unwrap();
         let response = client_stream.read_response().unwrap();
-        assert_eq!(AResponse {
-                       header: ResponseHeader {
-                           magic: constants::RESPONSE_MAGIC,
-                           opcode: constants::opcodes::GET,
-                           key_length: 0,
-                           extras_length: 4,
-                           data_type: 0x00,
-                           status: constants::response_status::NO_ERROR,
-                           total_body_length: 5,
-                           opaque: 0,
-                           cas: 0,
-                       },
-                       extras: vec![0, 0, 0, 0],
-                       key: vec![],
-                       value: vec!['v' as u8],
-                   },
-                   response);
+        assert_eq!(
+            AResponse {
+                header: ResponseHeader {
+                    magic: constants::RESPONSE_MAGIC,
+                    opcode: constants::opcodes::GET,
+                    key_length: 0,
+                    extras_length: 4,
+                    data_type: 0x00,
+                    status: constants::response_status::NO_ERROR,
+                    total_body_length: 5,
+                    opaque: 0,
+                    cas: 0,
+                },
+                extras: vec![0, 0, 0, 0],
+                key: vec![],
+                value: vec!['v' as u8],
+            },
+            response
+        );
     }
 
     #[test]
     fn test_binary_key_absent() {
         let mut client_stream = make_server_conn();
-        client_stream.write_request(&Request {
-                         header: RequestHeader {
-                             magic: constants::REQUEST_MAGIC,
-                             opcode: constants::opcodes::GET,
-                             key_length: 1,
-                             extras_length: 0,
-                             data_type: 0x00,
-                             reserved: 0,
-                             total_body_length: 0,
-                             opaque: 0,
-                             cas: 0,
-                         },
-                         extras: vec![],
-                         key: vec!['_' as u8],
-                     })
-                     .unwrap();
+        client_stream
+            .write_request(&Request {
+                header: RequestHeader {
+                    magic: constants::REQUEST_MAGIC,
+                    opcode: constants::opcodes::GET,
+                    key_length: 1,
+                    extras_length: 0,
+                    data_type: 0x00,
+                    reserved: 0,
+                    total_body_length: 0,
+                    opaque: 0,
+                    cas: 0,
+                },
+                extras: vec![],
+                key: vec!['_' as u8],
+            })
+            .unwrap();
         let response = client_stream.read_response().unwrap();
-        assert_eq!(AResponse {
-                       header: ResponseHeader {
-                           magic: constants::RESPONSE_MAGIC,
-                           opcode: constants::opcodes::GET,
-                           key_length: 0,
-                           extras_length: 0,
-                           data_type: 0x00,
-                           status: constants::response_status::KEY_NOT_FOUND,
-                           total_body_length: 0,
-                           opaque: 0,
-                           cas: 0,
-                       },
-                       extras: vec![],
-                       key: vec![],
-                       value: vec![],
-                   },
-                   response);
+        assert_eq!(
+            AResponse {
+                header: ResponseHeader {
+                    magic: constants::RESPONSE_MAGIC,
+                    opcode: constants::opcodes::GET,
+                    key_length: 0,
+                    extras_length: 0,
+                    data_type: 0x00,
+                    status: constants::response_status::KEY_NOT_FOUND,
+                    total_body_length: 0,
+                    opaque: 0,
+                    cas: 0,
+                },
+                extras: vec![],
+                key: vec![],
+                value: vec![],
+            },
+            response
+        );
     }
 
     #[test]
     fn test_binary_not_implemented() {
         let mut client_stream = make_server_conn();
-        client_stream.write_request(&Request {
-                         header: RequestHeader {
-                             magic: constants::REQUEST_MAGIC,
-                             opcode: 0xff, // unsupported opcode
-                             key_length: 0,
-                             extras_length: 0,
-                             data_type: 0x00,
-                             reserved: 0,
-                             total_body_length: 0,
-                             opaque: 0,
-                             cas: 0,
-                         },
-                         extras: vec![],
-                         key: vec![],
-                     })
-                     .unwrap();
+        client_stream
+            .write_request(&Request {
+                header: RequestHeader {
+                    magic: constants::REQUEST_MAGIC,
+                    opcode: 0xff, // unsupported opcode
+                    key_length: 0,
+                    extras_length: 0,
+                    data_type: 0x00,
+                    reserved: 0,
+                    total_body_length: 0,
+                    opaque: 0,
+                    cas: 0,
+                },
+                extras: vec![],
+                key: vec![],
+            })
+            .unwrap();
         let response = client_stream.read_response().unwrap();
-        assert_eq!(AResponse {
-                       header: ResponseHeader {
-                           magic: constants::RESPONSE_MAGIC,
-                           opcode: 0xff, // unsupported opcode
-                           key_length: 0,
-                           extras_length: 0,
-                           data_type: 0x00,
-                           status: constants::response_status::NOT_SUPPORTED,
-                           total_body_length: 0,
-                           opaque: 0,
-                           cas: 0,
-                       },
-                       extras: vec![],
-                       key: vec![],
-                       value: vec![],
-                   },
-                   response);
+        assert_eq!(
+            AResponse {
+                header: ResponseHeader {
+                    magic: constants::RESPONSE_MAGIC,
+                    opcode: 0xff, // unsupported opcode
+                    key_length: 0,
+                    extras_length: 0,
+                    data_type: 0x00,
+                    status: constants::response_status::NOT_SUPPORTED,
+                    total_body_length: 0,
+                    opaque: 0,
+                    cas: 0,
+                },
+                extras: vec![],
+                key: vec![],
+                value: vec![],
+            },
+            response
+        );
     }
 }
