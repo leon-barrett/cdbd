@@ -1,8 +1,7 @@
 use std::env;
-use std::fmt;
+use std::net::SocketAddr;
 use std::path::Path;
 use std::process::exit;
-use std::str::FromStr;
 use std::sync::Arc;
 use std::thread;
 
@@ -15,10 +14,9 @@ extern crate log;
 extern crate mtbl;
 extern crate num_cpus;
 extern crate objpool;
-extern crate regex;
-use regex::Regex;
 extern crate time;
 extern crate tinycdb;
+extern crate tokio;
 
 mod kvstore;
 use kvstore::KvStore;
@@ -35,23 +33,10 @@ enum DbArg {
     Mtbl(String),
 }
 
-/// A address and port to run a service on
-#[derive(Debug, Clone)]
-struct Listen {
-    address: String,
-    port: u16,
-}
-
-impl fmt::Display for Listen {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}:{}", self.address, self.port)
-    }
-}
-
 /// A service to run
 #[derive(Debug, Clone)]
 enum ServiceArg {
-    Memcached(Listen),
+    Memcached(SocketAddr),
 }
 
 #[derive(Debug, Clone)]
@@ -61,30 +46,12 @@ struct Args {
     verbosity: u8,
 }
 
-fn parse_address_and_port(s: &str) -> Listen {
-    Regex::new(r"^((?P<address>.*):)?(?P<port>\d+)$")
-        .unwrap()
-        .captures(s)
-        .map(|c| Listen {
-            address: c.name("address")
-                .map_or("0.0.0.0", |m| m.as_str())
-                .to_owned(),
-            port: c.name("port")
-                .map(|m| {
-                    u16::from_str(m.as_str())
-                        .expect(&format!("error parsing port from \"{}\"", m.as_str()))
-                })
-                .unwrap(),
-        })
-        .expect(&format!("error parsing address and port from \"{}\"", s))
-}
-
 fn parse_services(matches: &Matches) -> Vec<ServiceArg> {
     let services: Vec<ServiceArg> = vec![("memcached", ServiceArg::Memcached)]
         .iter()
         .map(|&(name, service_f)|
              matches.opt_str(name)
-             .map(|s| service_f(parse_address_and_port(&s))))
+             .map(|s| service_f(s.parse().expect("Error parsing host:port"))))
         // remove Nones
         .flat_map(|o| o.into_iter())
         .collect();
@@ -115,9 +82,8 @@ fn parse_args() -> Args {
     opts.optopt(
         "",
         "memcached",
-        "What port (and optional address) to bind a memcached service on (default \
-         address \"0.0.0.0\")",
-        "[HOST:]PORT",
+        "What port (and optional address) to bind a memcached service on",
+        "HOST:PORT",
     );
     opts.optopt("", "cdb", "A CDB file to serve", "CDB");
     opts.optopt("", "mtbl", "An MTBL file to serve", "MTBL");
@@ -197,8 +163,8 @@ fn spawn_service(
     let service = service.clone();
     let kvstore = kvstore.clone();
     thread::spawn(move || match service {
-        ServiceArg::Memcached(Listen { address, port }) => {
-            memcached_server(kvstore, &address, port);
+        ServiceArg::Memcached(addr) => {
+            memcached_server(kvstore, addr);
         }
     })
 }

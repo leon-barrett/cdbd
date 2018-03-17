@@ -1,5 +1,5 @@
 use std::io::{BufReader, BufWriter, Cursor, Read};
-use std::net::{TcpListener, TcpStream};
+use std::net::{SocketAddr, TcpListener, TcpStream};
 use std::thread;
 
 use byteorder::ReadBytesExt;
@@ -10,14 +10,14 @@ use super::binary::server as binary_server;
 use super::error::Result;
 use super::text::server as text_server;
 
-pub fn memcached_server<KV>(kvstore: KV, host: &str, port: u16)
+pub fn memcached_server<KV>(kvstore: KV, addr: SocketAddr)
 where
     KV: KvStore,
     KV: Clone,
     KV: Send,
     KV: 'static,
 {
-    let listener = TcpListener::bind((host, port)).expect(&format!("Failed to open port {}", port));
+    let listener = TcpListener::bind(addr).expect(&format!("Failed to open {}", addr));
 
     // accept connections and process them, spawning a new thread for each one
     for stream in listener.incoming() {
