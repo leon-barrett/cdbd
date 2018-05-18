@@ -1,14 +1,16 @@
 use std::io::{BufReader, BufWriter, Cursor, Read};
-use std::net::{SocketAddr, TcpListener, TcpStream};
-use std::thread;
+use std::net::SocketAddr;
 
 use byteorder::ReadBytesExt;
 
-use kvstore::KvStore;
 use super::binary::protocol::constants as binary_constants;
-use super::binary::server as binary_server;
-use super::error::Result;
+use kvstore::KvStore;
+//use super::binary::server as binary_server;
+use super::error::Error;
 use super::text::server as text_server;
+extern crate tokio;
+use tokio::net::{TcpListener, TcpStream};
+use tokio::prelude::*;
 
 pub fn memcached_server<KV>(kvstore: KV, addr: SocketAddr)
 where
@@ -17,24 +19,26 @@ where
     KV: Send,
     KV: 'static,
 {
-    let listener = TcpListener::bind(addr).expect(&format!("Failed to open {}", addr));
+    //let listener = TcpListener::bind(addr).expect(&format!("Failed to open {}", addr));
+    let listener = TcpListener::bind(&addr).unwrap();
 
     // accept connections and process them, spawning a new thread for each one
-    for stream in listener.incoming() {
-        match stream {
-            Ok(stream) => {
-                // connection succeeded
-                let kvs = kvstore.clone();
-                thread::spawn(move || handle_client(kvs, stream));
-            }
-            Err(_) => {
-                trace!("connection failed as it was received");
-            }
-        }
-    }
+    let server = listener
+        .incoming()
+        .for_each(move |socket| {
+            let kvs = kvstore.clone();
+            tokio::spawn(handle_client(kvs, socket));
+            Ok(())
+        })
+        .map_err(|err| println!("accept error = {:?}", err));
+
+    server.run();
 }
 
-fn handle_client<KV: KvStore>(kvstore: KV, mut stream: TcpStream) -> Result<()> {
+fn handle_client<KV: KvStore>(
+    kvstore: KV,
+    mut stream: TcpStream,
+) -> Box<Future<Item = (), Error = ()>> {
     let first_char: u8 = try!(stream.read_u8());
     let fake_stream = Cursor::new(vec![first_char]);
     let addr = try!(stream.peer_addr());
@@ -47,7 +51,7 @@ fn handle_client<KV: KvStore>(kvstore: KV, mut stream: TcpStream) -> Result<()> 
     };
     info!("{} connection from {}", protocol_name, addr);
     let result = match binary {
-        true => binary_server::handle_client(kvstore, peeked, writer),
+        //true => binary_server::handle_client(kvstore, peeked, writer),
         _ => text_server::handle_client(kvstore, peeked, writer),
     };
     info!("{} disconnection from {}", protocol_name, addr);
@@ -60,9 +64,9 @@ mod test {
     use std::net::{Shutdown, TcpListener, TcpStream};
     use std::thread;
 
-    use kvstore::KvStore;
     use super::super::binary::protocol::{constants, AResponse, PRead, PWrite, Request,
                                          RequestHeader, ResponseHeader};
+    use kvstore::KvStore;
 
     /// A KvStore with one pair, {"k": "v"}
     struct DummyKvStore {}
