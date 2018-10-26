@@ -27,42 +27,50 @@ where
         .incoming()
         .for_each(move |socket| {
             let kvs = kvstore.clone();
-            tokio::spawn(handle_client(kvs, socket));
+            tokio::spawn(handle_client(kvs, socket).map_err(|e| panic!(e)));
             Ok(())
         })
         .map_err(|err| println!("accept error = {:?}", err));
 
-    server.run();
+    tokio::run(server);
 }
 
 fn handle_client<KV: KvStore>(
     kvstore: KV,
     mut stream: TcpStream,
-) -> Box<Future<Item = (), Error = ()>> {
-    let first_char: u8 = try!(stream.read_u8());
-    let fake_stream = Cursor::new(vec![first_char]);
-    let addr = try!(stream.peer_addr());
-    let peeked = BufReader::new(fake_stream.chain(stream.try_clone().unwrap()));
-    let writer = BufWriter::new(stream);
-    let binary = first_char == binary_constants::REQUEST_MAGIC;
-    let protocol_name = match binary {
-        true => "memcached_binary",
-        false => "memcached_text",
-    };
-    info!("{} connection from {}", protocol_name, addr);
-    let result = match binary {
-        //true => binary_server::handle_client(kvstore, peeked, writer),
-        _ => text_server::handle_client(kvstore, peeked, writer),
-    };
+) -> future::FutureResult<(), Error> {
+//) -> impl Future<Item=(), Error=Error> {
+    //    let first_char: u8 = try!(stream.read_u8());
+    //    let fake_stream = Cursor::new(vec![first_char]);
+    let addr = stream.peer_addr().unwrap();
+    //    let peeked = BufReader::new(fake_stream.chain(stream.try_clone().unwrap()));
+    let (raw_reader, raw_writer) = stream.split();
+    let writer = BufWriter::new(raw_writer);
+    //    let binary = first_char == binary_constants::REQUEST_MAGIC;
+    //    let protocol_name = match binary {
+    //        true => "memcached_binary",
+    //        false => "memcached_text",
+    //    };
+    //    info!("{} connection from {}", protocol_name, addr);
+    //    let result = match binary {
+    //        true => binary_server::handle_client(kvstore, peeked, writer),
+    //        _ => text_server::handle_client(kvstore, peeked, writer),
+    //    };
+    let reader = BufReader::new(raw_reader);
+    let protocol_name = "memcached_text";
+    let result = text_server::handle_client(kvstore, reader, writer);
     info!("{} disconnection from {}", protocol_name, addr);
-    result
+    future::result(result)
 }
 
 #[cfg(test)]
 mod test {
     use std::io::{Read, Write};
-    use std::net::{Shutdown, TcpListener, TcpStream};
+    use std::net::{IpAddr, Ipv4Addr, Shutdown, SocketAddr};
     use std::thread;
+
+    use tokio::net::{TcpListener, TcpStream};
+    use tokio::prelude::*;
 
     use super::super::binary::protocol::{constants, AResponse, PRead, PWrite, Request,
                                          RequestHeader, ResponseHeader};
@@ -81,13 +89,20 @@ mod test {
         }
     }
 
-    fn make_server_conn() -> TcpStream {
-        let listener = TcpListener::bind(("localhost", 0)).unwrap();
+    fn make_server_conn() -> std::net::TcpStream {
+        let mut listener = TcpListener::bind(&"127.0.0.1:0".parse().unwrap()).unwrap();
         let port = listener.local_addr().unwrap().port();
-        let client_conn = TcpStream::connect(("localhost", port)).unwrap();
+        let socket = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), port);
+        let client_conn = std::net::TcpStream::connect(&socket).unwrap();
         thread::spawn(move || {
-            let (server_stream, _) = listener.accept().unwrap();
-            super::handle_client(DummyKvStore {}, server_stream).unwrap_or(());
+            let server = listener.incoming()
+                .take(1)
+                .for_each(move |socket| {
+                    tokio::spawn(super::handle_client(DummyKvStore{}, socket).map_err(|_| ()));
+                    Ok(())
+                })
+                .map_err(|err| println!("accept error = {:?}", err));
+            tokio::run(server);
         });
         client_conn
     }
@@ -141,6 +156,7 @@ mod test {
         );
     }
 
+    /*
     #[test]
     fn test_binary_key_present() {
         let mut client_stream = make_server_conn();
@@ -266,4 +282,5 @@ mod test {
             response
         );
     }
+    */
 }

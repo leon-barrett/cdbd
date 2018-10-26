@@ -2,6 +2,8 @@ use std::io;
 use std::num;
 use std::result;
 
+use tokio::prelude::*;
+
 #[derive(Debug)]
 pub enum Error {
     Io(io::Error),
@@ -34,3 +36,14 @@ impl<'a> From<&'a str> for Error {
 }
 
 pub type Result<T> = result::Result<T, Error>;
+
+// impl<T> Future for Result<T> {
+//     type Item = T;
+//     type Error = Error;
+//     fn poll(&mut self) -> Result<Async<T>> {
+//         match self {
+//             Ok(v) => Ok(Async::Ready(v)),
+//             x => x,
+//         }
+//     }
+// }
